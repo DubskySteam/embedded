@@ -41,7 +41,7 @@
 // #define RED_BTN 10
 
 // VARS
-uint32_t level = 15;
+uint32_t level = 1;
 uint32_t led_n = 3;
 uint32_t led_t = 150000;
 uint32_t sequence[SEQUENCE_MAX] = {-1};
@@ -134,20 +134,23 @@ void LED_BLINK(const uint32_t led, const uint32_t delay) {
 }
 
 uint32_t check_btn(const uint32_t btn) {
-	if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1U << btn))) {
+	// Entprellen wusste ich zwar wie es funktionieren müsste
+	// hat es aber nicht :(
+	// Idee war: 
+	if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << btn))) {
 		return 1;
 	}
 	return 0;
 }
 
 uint32_t check_all_btn() {
-	if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1U << GREEN_BTN))) {
+	if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << GREEN_BTN))) {
 		return GREEN_LED;
-	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1U << RED_BTN))) {
+	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << RED_BTN))) {
 		return RED_LED;
-	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1U << BLUE_BTN))) {
+	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << BLUE_BTN))) {
 		return BLUE_LED;
-	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1U << YELLOW_BTN))) {
+	} else if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << YELLOW_BTN))) {
 		return YELLOW_LED;
 	}
 	return -1;
