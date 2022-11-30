@@ -14,6 +14,28 @@ typedef unsigned int uint32_t;
 
 #define SEQUENCE_MAX 20
 
+// LEDS - VP-Redboard (Funktionieren nicht mit den PINs der Anleitung)
+#define GREEN_LED 18
+#define BLUE_LED 21
+#define YELLOW_LED 0
+#define RED_LED 3
+// // LEDS - HARDWARE
+// #define GREEN_LED 2
+// #define BLUE_LED 5
+// #define YELLOW_LED 8
+// #define RED_LED 11
+
+// BUTTONS - VP-Redboard (Funktionieren nicht mit den PINs der Anleitung)
+#define GREEN_BTN 19
+#define BLUE_BTN 20
+#define YELLOW_BTN 1
+#define RED_BTN 2
+// // BUTTONS - HARDWARE
+// #define GREEN_BTN 3
+// #define BLUE_BTN 4
+// #define YELLOW_BTN 9
+// #define RED_BTN 10
+
 // VARS
 uint32_t level = 15;
 uint32_t led_n = 3;
@@ -21,16 +43,6 @@ uint32_t led_t = 150000;
 uint32_t sequence[SEQUENCE_MAX] = {-1};
 uint32_t sequence_counter = 0;
 uint32_t win = 0;
-// LEDS
-#define GREEN_LED 18
-#define BLUE_LED 21
-#define YELLOW_LED 0
-#define RED_LED 3U
-// BUTTONS
-#define GREEN_BTN 19
-#define BLUE_BTN 20
-#define YELLOW_BTN 1
-#define RED_BTN 2
 // TIMERS
 const uint32_t T_SHORT = 250000;
 const uint32_t T_LONG = 2 * T_SHORT;
@@ -139,6 +151,7 @@ volatile void wait(const uint32_t timer) {
 
 void ShowBinaryLevel() {
 	int binary[4] = {0};
+	level--;
 	for(int i = 0; level > 0; i++) {
 		binary[i] = level % 2;
 		level /= 2;
@@ -165,6 +178,9 @@ void LoserMode() {
 	LED_ALL_OFF();
 }
 
+//-----------------------------------------------------------------------
+// AUSKOMMENTIERT -> srand() funktioniert auf dem Board anscheinend nicht
+//-----------------------------------------------------------------------
 // int getRandomLed() {
 // 	srand(time(NULL));
 //    	int num = (rand() % (4 + 1 - 1) + 1);
@@ -224,7 +240,7 @@ void addToSequence() {
 }
 
 void PreviewSequence() {
-    for(int i = 1; i < led_n; i++) {
+    for(int i = 0; i < led_n; i++) {
         addToSequence();
     }
 	LED_ALL_ON();
@@ -292,9 +308,9 @@ void SeperatorSequence() {
 			led_t *= 0.9;
 		} else if(9 <= level && level <= 12) {
 			led_n++;
-		} else if(13 <= level && level < 16) {
+		} else if(13 <= level && level <= 16) {
 			led_t *= 0.9;
-		} else if(level == 16) {
+		} else if(level > 16) {
 			EndMode();
 			win = 1;
 		}
