@@ -189,7 +189,7 @@ void LoserMode() {
 // }
 
 int getRandomLed() {
-	t = time(NULL);
+	uint32_t t = time(NULL);
 	static unsigned int rand = 0;
 	rand += t;
     rand %= 4;
