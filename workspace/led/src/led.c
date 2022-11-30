@@ -1,6 +1,10 @@
-#include <stdlib.h>
+/////////////////////////////////////////////
+// FALLS DAS ZIP NICHT FUNKTIONIERT HAT    //
+// https://github.com/dubskysteam/embedded //
+/////////////////////////////////////////////
 
-typedef unsigned int uint32_t;
+#include <stdlib.h>
+#include <time.h>
 
 #define REG(P) (*(volatile uint32_t *) (P))
 
@@ -47,6 +51,10 @@ uint32_t win = 0;
 const uint32_t T_SHORT = 250000;
 const uint32_t T_LONG = 2 * T_SHORT;
 const uint32_t T_VERY_LONG = 2 * T_LONG;
+
+volatile void wait(const uint32_t timer) {
+	for(volatile int i = 0; i < timer; i++) {}
+}
 
 void setupLEDs() {
 	REG(GPIO_BASE + GPIO_IOF_EN) &= ~(1 << GREEN_LED);
@@ -143,10 +151,6 @@ uint32_t check_all_btn() {
 		return YELLOW_LED;
 	}
 	return -1;
-}
-
-volatile void wait(const uint32_t timer) {
-	for(volatile int i = 0; i < timer; i++) {}
 }
 
 void ShowBinaryLevel() {
