@@ -1,7 +1,17 @@
-/////////////////////////////////////////////
-// FALLS DAS ZIP NICHT FUNKTIONIERT HAT    //
-// https://github.com/dubskysteam/embedded //
-/////////////////////////////////////////////
+   __          _              _     _          _ 
+  /__\ __ ___ | |__   ___  __| | __| | ___  __| |
+ /_\| '_ ` _ \| '_ \ / _ \/ _` |/ _` |/ _ \/ _` |
+//__| | | | | | |_) |  __/ (_| | (_| |  __/ (_| |
+\__/|_| |_| |_|_.__/ \___|\__,_|\__,_|\___|\__,_|
+
+///////////////////////////////////////////////////////////////////////
+// Author: Clemens Maas                                              //
+// Matrikelnummer: 1260892                                           //
+///////////////////////////////////////////////////////////////////////
+// Falls die ZIP nicht funktioniert, warum auch immer                //
+//                                                                   //
+// https://github.com/DubskySteam/embedded/tree/master/workspace/led //
+///////////////////////////////////////////////////////////////////////
 
 #include <stdlib.h>
 #include <time.h>
@@ -18,7 +28,7 @@
 
 #define SEQUENCE_MAX 20
 
-// LEDS - VP-Redboard (Funktionieren nicht mit den PINs der Anleitung)
+// LEDS - VP-Redboard
 #define GREEN_LED 18
 #define BLUE_LED 21
 #define YELLOW_LED 0
@@ -29,7 +39,7 @@
 // #define YELLOW_LED 8
 // #define RED_LED 11
 
-// BUTTONS - VP-Redboard (Funktionieren nicht mit den PINs der Anleitung)
+// BUTTONS - VP-Redboard
 #define GREEN_BTN 19
 #define BLUE_BTN 20
 #define YELLOW_BTN 1
@@ -56,8 +66,47 @@ volatile void wait(const uint32_t timer) {
 	for(volatile int i = 0; i < timer; i++) {}
 }
 
-void setupLEDs() {
-	REG(GPIO_BASE + GPIO_IOF_EN) &= ~(1 << GREEN_LED);
+typedef enum {
+    STATE_STARTUP,
+    STATE_IDLE,
+    STATE_PREVIEW,
+    STATE_PLAY,
+    STATE_WIN,
+    STATE_LOSE,
+    STATE_END,
+    STATE_SEPERATOR
+} GameState;
+
+// Globale Variablen
+GameState currentState = STATE_STARTUP;
+uint32_t sequence[SEQUENCE_MAX];
+uint32_t sequenceLength = 0;
+uint32_t currentLevel = 3;
+
+// Prototypen der Funktionen
+void setupHardware();
+void processState();
+void LoserMode();
+void PreviewSequence();
+void PlaySequence();
+void ReadyMode();
+void IdleMode();
+void StartUp();
+void WinMode();
+
+// Hauptfunktion
+int main(void) {
+    setupHardware();
+    while (1) {
+        processState();
+    }
+    return 0;
+}
+
+void setupHardware() {
+    // Initialisieren Sie hier LEDs und Tasten
+    // SETUP LED'S
+    REG(GPIO_BASE + GPIO_IOF_EN) &= ~(1 << GREEN_LED);
 	REG(GPIO_BASE + GPIO_INPUT_EN) &= ~(1 << GREEN_LED);
 	REG(GPIO_BASE + GPIO_OUTPUT_EN) |= (1 << GREEN_LED);
 	REG(GPIO_BASE + GPIO_OUTPUT_VAL) |= (1 << GREEN_LED);
@@ -76,10 +125,9 @@ void setupLEDs() {
 	REG(GPIO_BASE + GPIO_INPUT_EN) &= ~(1 << RED_LED);
 	REG(GPIO_BASE + GPIO_OUTPUT_EN) |= (1 << RED_LED);
 	REG(GPIO_BASE + GPIO_OUTPUT_VAL) |= (1 << RED_LED);
-}
 
-void setUpButtons() {
-	REG(GPIO_BASE + GPIO_IOF_EN) &= ~(1 << GREEN_BTN);
+    // SETUP BUTTONS
+    REG(GPIO_BASE + GPIO_IOF_EN) &= ~(1 << GREEN_BTN);
 	REG(GPIO_BASE + GPIO_PUE) |= 1 << GREEN_BTN;
 	REG(GPIO_BASE + GPIO_INPUT_EN) |= 1 << GREEN_BTN;
 	REG(GPIO_BASE + GPIO_OUTPUT_EN) &= ~(1 << GREEN_BTN);
@@ -102,6 +150,68 @@ void setUpButtons() {
 	REG(GPIO_BASE + GPIO_INPUT_EN) |= 1 << RED_BTN;
 	REG(GPIO_BASE + GPIO_OUTPUT_EN) &= ~(1 << RED_BTN);
 	REG(GPIO_BASE + GPIO_OUTPUT_VAL) &= ~(1 << RED_BTN);
+}
+
+void changeState(GameState newState) {
+    currentState = newState;
+}
+
+void processState() {
+    switch (currentState) {
+        case STATE_STARTUP:
+            // Logik für den Startzustand
+            StartUp();
+            changeState(STATE_IDLE);
+            break;
+        case STATE_IDLE:
+            // Logik für den Leerlaufzustand
+            IdleMode();
+            changeState(STATE_PREVIEW);
+            break;
+        case STATE_PREVIEW:
+            // Logik für die Vorschau der Sequenz
+            PreviewMode();
+            PreviewSequence();
+            changeState(STATE_PLAY);
+            break;
+        case STATE_PLAY:
+            // Logik für das Abspielen der Sequenz
+            PlaySequence();
+            if (win == 0) {
+                changeState(STATE_SEPERATOR);
+            }
+            else if (win == 1) {
+                changeState(STATE_WIN);
+            } else {
+                changeState(STATE_LOSE);
+            }
+            break;
+        case STATE_SEPERATOR:
+            SeperatorSequence();
+            changeState(STATE_PREVIEW);
+            break;
+        case STATE_WIN:
+            // Logik für den Gewinnzustand
+            win = 0;
+            level = 1;
+            led_n = 3;
+            led_t = 150000;
+            changeState(STATE_END);
+            break;
+        case STATE_LOSE:
+            // Logik für den Verlustzustand
+            LoserMode();
+            changeState(STATE_IDLE);
+            break;
+        case STATE_END:
+            // Logik für den Endzustand
+            EndMode();
+            changeState(STATE_IDLE);
+            break;
+        default:
+            // Standardfall, falls nötig
+            break;
+    }
 }
 
 void LED_ON(const uint32_t led) {
@@ -134,12 +244,12 @@ void LED_BLINK(const uint32_t led, const uint32_t delay) {
 }
 
 uint32_t check_btn(const uint32_t btn) {
-	// Entprellen wusste ich zwar wie es funktionieren müsste
-	// hat es aber nicht :(
-	// Idee war: 
-	if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << btn))) {
-		return 1;
-	}
+    if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << btn))){
+        wait(10000);
+        if (!(REG(GPIO_BASE + GPIO_INPUT_VAL) & (1 << btn))) {
+            return 1;
+        }
+    }
 	return 0;
 }
 
@@ -156,29 +266,33 @@ uint32_t check_all_btn() {
 	return -1;
 }
 
+// Ich weiss nicht warum, aber auf Linux funktioniert es im Simulator.
+// Unter Windows manchmal nicht?
 void ShowBinaryLevel() {
-	int binary[4] = {0};
-	level--;
-	for(int i = 0; level > 0; i++) {
-		binary[i] = level % 2;
-		level /= 2;
-	}
-	for(int i = 0; i < 4; i++) {
-		if(binary[i] == 1 && i == 0) {
-			LED_ON(RED_LED);
-		} else if(binary[i] == 1 && i == 1) {
-			LED_ON(YELLOW_LED);
-		} else if(binary[i] == 1 && i == 2) {
-			LED_ON(BLUE_LED);
-		} else if(binary[i] == 1 && i == 3) {
-			LED_ON(GREEN_LED);
-		}
-	}
+    uint32_t binary[4] = {0};
+    uint32_t tempLevel = level;
+
+    // Berechnung der Binärdarstellung
+    for (int i = 0; tempLevel > 0 && i < 4; i++) {
+        binary[i] = tempLevel % 2;
+        tempLevel /= 2;
+    }
+
+    // LEDs entsprechend der Binärdarstellung ein- oder ausschalten
+    if (binary[0]) LED_ON(RED_LED); else LED_OFF(RED_LED);
+    if (binary[1]) LED_ON(YELLOW_LED); else LED_OFF(YELLOW_LED);
+    if (binary[2]) LED_ON(BLUE_LED); else LED_OFF(BLUE_LED);
+    if (binary[3]) LED_ON(GREEN_LED); else LED_OFF(GREEN_LED);
 }
 
 void LoserMode() {
-	for(int i = 0; i < 5; i++) {
-		LED_BLINK(GREEN_LED, T_SHORT);
+	for(int i = 0; i < 2; i++) {
+        LED_ON(GREEN_LED);
+        LED_ON(RED_LED);
+        wait(T_SHORT);
+        LED_OFF(GREEN_LED);
+        LED_OFF(RED_LED);
+        wait(T_SHORT);
 	}
 	ShowBinaryLevel();
 	wait(T_VERY_LONG);
@@ -251,7 +365,7 @@ void PreviewSequence() {
         addToSequence();
     }
 	LED_ALL_ON();
-	wait(led_t);
+	wait(T_SHORT);
 	LED_ALL_OFF();
 }
 
@@ -278,47 +392,43 @@ void PlaySequence() {
 
 void EndMode() {
 	LED_ALL_ON();
+	wait(T_SHORT);
+	LED_ALL_OFF();
+	wait(T_SHORT);
+	LED_ALL_ON();
 	wait(T_LONG);
 	LED_ALL_OFF();
-	wait(T_LONG);
+	wait(T_SHORT);
 	LED_ALL_ON();
 	wait(T_SHORT);
 	LED_ALL_OFF();
-	wait(T_LONG);
-	LED_ALL_ON();
-	wait(T_LONG);
-	LED_ALL_OFF();
-	wait(T_LONG);
-	LED_ALL_ON();
 	wait(T_SHORT);
+	LED_ALL_ON();
+	wait(T_LONG);
 	LED_ALL_OFF();
 }
 
 void SeperatorSequence() {
-	for(int i = 0; i < 5; i++) {
+    LED_ALL_OFF();
+	for(int i = 0; i < 2; i++) {
 		LED_ON(GREEN_LED);
-		LED_ON(BLUE_LED);
-		wait(T_SHORT);
-		LED_OFF(GREEN_LED);
-		LED_OFF(BLUE_LED);
-		LED_ON(RED_LED);
 		LED_ON(YELLOW_LED);
 		wait(T_SHORT);
-		LED_OFF(RED_LED);
+		LED_OFF(GREEN_LED);
 		LED_OFF(YELLOW_LED);
+		LED_ON(RED_LED);
+		LED_ON(BLUE_LED);
+		wait(T_SHORT);
+		LED_OFF(RED_LED);
+		LED_OFF(BLUE_LED);
 	}
 
 		level++;
-		if(level <= 4) {
-			led_n++;
-		} else if(5 <= level && level <= 8) {
+        led_n++;
+		if(level % 2 == 0) {
 			led_t *= 0.9;
-		} else if(9 <= level && level <= 12) {
-			led_n++;
-		} else if(13 <= level && level <= 16) {
-			led_t *= 0.9;
-		} else if(level > 16) {
-			EndMode();
+		}
+        if(level > 10) {
 			win = 1;
 		}
 }
@@ -347,67 +457,41 @@ void StartUp() {
 }
 
 void PreviewMode() {
-	LED_ALL_ON();
-	wait(T_SHORT);
-	LED_OFF(RED_LED);
-	wait(T_SHORT);
-	LED_OFF(YELLOW_LED);
-	wait(T_SHORT);
-	LED_OFF(BLUE_LED);
-	wait(T_SHORT);
-	LED_OFF(GREEN_LED);
-	wait(T_SHORT);
+    LED_ON(BLUE_LED);
+    LED_ON(YELLOW_LED);
+    wait(T_SHORT);
+    LED_ALL_OFF();
+    wait(T_SHORT);
 }
 
 void IdleMode() {
-	uint32_t leds[] = {RED_LED, YELLOW_LED, BLUE_LED, GREEN_LED};
 	uint32_t counter = 0;
-	int x = 0;
-	while(check_btn(YELLOW_BTN) == 0) {
-		if(x % 2 == 0) {
-			LED_ON(leds[counter/2]);
-			wait(T_SHORT);
-		} else {
-			LED_OFF(leds[counter/2]);
-			wait(T_SHORT);
-		}
-		x++;
-		if(counter == 7) {
-			counter = 0;
-		} else {
-			counter++;
-		}
+	while(check_btn(GREEN_BTN) == 0) {
+        if (counter == 0) {
+            LED_ON(GREEN_LED);
+            wait(T_SHORT);
+            LED_OFF(GREEN_LED);
+        }
+        else if (counter == 1) {
+            LED_ON(BLUE_LED);
+            wait(T_SHORT);
+            LED_OFF(BLUE_LED);
+        }
+        else if (counter == 2) {
+            LED_ON(YELLOW_LED);
+            wait(T_SHORT);
+            LED_OFF(YELLOW_LED);
+        }
+        else if (counter == 3) {
+            LED_ON(RED_LED);
+            wait(T_SHORT);
+            LED_OFF(RED_LED);
+        }
+        if (counter >= 3) {
+            counter = 0;
+        } else {
+            counter++;
+        }
 	}
 	LED_ALL_OFF();
-}
-
-int main (void)
-{
-	// LED as output
-	setupLEDs();
-	LED_OFF(YELLOW_LED);
-	LED_OFF(RED_LED);
-	LED_OFF(GREEN_LED);
-	LED_OFF(BLUE_LED);
-	// Buttons as input
-	setUpButtons();
-
-	StartUp();
-	while(1) {
-		IdleMode();
-		while(win == 0) {
-			PreviewMode();
-			PreviewSequence();
-			PlaySequence();
-			if(win == 0) {
-				SeperatorSequence();
-			} else if (win == -1) {
-				LoserMode();
-			}
-		}
-		win = 0;
-		level = 1;
-		led_n = 3;
-		led_t = 150000;
-	}
 }
